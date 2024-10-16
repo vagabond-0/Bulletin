@@ -5,10 +5,30 @@ class Alumni(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
-    email = models.EmailField(unique=True)  # Add email field to Alumni model
+    email = models.EmailField(unique=True) 
     company = models.CharField(max_length=100, blank=True)
     designation = models.CharField(max_length=100, blank=True)
     profile_picture_url = models.URLField(max_length=255, blank=True)
 
     def __str__(self):
         return self.user.username
+class Post(models.Model):
+    alumni = models.ForeignKey(Alumni, on_delete=models.CASCADE, related_name='posts')
+    posted_date = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True, null=True)
+    image_link = models.URLField(max_length=255, blank=True, null=True)
+    video_link = models.URLField(max_length=255, blank=True, null=True)
+    likes = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"Post by {self.alumni.user.username} on {self.posted_date}"
+
+class Comment(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments') 
+    alumni = models.ForeignKey(Alumni, on_delete=models.CASCADE, related_name='comments')  
+    comment_text = models.TextField()
+    posted_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.alumni.user.username} on {self.posted_date}"
+

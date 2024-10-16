@@ -1,7 +1,11 @@
-from django.contrib import admin
 from django.urls import path
-from User.views import LoginView 
+from .views import LoginView,  PostListCreateView, PostRetrieveUpdateDestroyView, LikePostView,CommentListView,CommentCreateView
 
 urlpatterns = [
-    path('login/', LoginView.as_view(), name='login'), 
+    path('login/', LoginView.as_view(), name='login'),
+    path('posts/', PostListCreateView.as_view(), name='post-list-create'),
+    path('posts/<int:pk>/', PostRetrieveUpdateDestroyView.as_view(), name='post-detail'),
+    path('posts/<int:pk>/like/', LikePostView.as_view(), name='post-like'),
+    path('posts/<int:post_id>/comments/', CommentListView.as_view(), name='comment-list'),
+    path('posts/<int:post_id>/comments/create/', CommentCreateView.as_view(), name='comment-create'),
 ]
