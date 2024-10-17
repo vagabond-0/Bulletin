@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-@@n&m5lh3bz#8y7&v=z3!6g&w_ug=92c$d^#d^*=2_k+ne2-se'
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -76,6 +76,12 @@ WSGI_APPLICATION = 'bulletin.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -93,7 +99,7 @@ DATABASES = {
 #     }
 # }
 
-DATABASES["default"] = dj_database_url.parse("postgresql://bulletin_inb9_user:cZgzpbUgwxUpVypqfZqezvFuuLKUYuJA@dpg-cs8feilumphs73864ev0-a.oregon-postgres.render.com/bulletin_inb9")
+# DATABASES["default"] = dj_database_url.parse("postgresql://bulletin_inb9_user:cZgzpbUgwxUpVypqfZqezvFuuLKUYuJA@dpg-cs8feilumphs73864ev0-a.oregon-postgres.render.com/bulletin_inb9")
 
 
 # Password validation
