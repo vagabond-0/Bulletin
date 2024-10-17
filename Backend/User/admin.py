@@ -29,13 +29,9 @@ class CommentInline(admin.TabularInline):
 
 @admin.register(Alumni)
 class AlumniAdmin(admin.ModelAdmin):
-    list_display = ('user', 'email', 'company', 'designation', 'get_likes_received')
+    list_display = ('user', 'email', 'company', 'designation')
     search_fields = ('user__username', 'email', 'company')
     inlines = [PostInline]
-
-    def get_likes_received(self, obj):
-        return obj.likes.count()
-    get_likes_received.short_description = 'Likes Received'
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):

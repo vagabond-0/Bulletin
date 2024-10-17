@@ -16,7 +16,7 @@ class Alumni(models.Model):
     company = models.CharField(max_length=100, blank=True)
     designation = models.CharField(max_length=100, blank=True)
     profile_picture_url = models.URLField(max_length=255, blank=True)
-    likes = models.ManyToManyField('self', symmetrical=False, related_name='liked_by',blank=True)
+    # likes = models.ManyToManyField('self', symmetrical=False, related_name='liked_by',blank=True)
 
     def __str__(self):
         return self.user.username
