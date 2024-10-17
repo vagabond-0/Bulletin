@@ -163,10 +163,9 @@ class CommentListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 class PostListView(APIView):
-    authentication_classes = [JWTAuthentication]  
+    authentication_classes = [JWTAuthentication]
 
     def get(self, request):
-     
-        posts = Post.objects.all().order_by('-posted_date') 
-        serializer = PostSerializer(posts, many=True) 
+        posts = Post.objects.all().order_by('-posted_date')
+        serializer = PostSerializer(posts, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

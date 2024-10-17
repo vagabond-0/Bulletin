@@ -14,10 +14,10 @@ class CommentSerializer(serializers.ModelSerializer):
         read_only_fields = ('post', 'alumni', 'posted_date')
 
 class PostSerializer(serializers.ModelSerializer):
-    alumni_username = serializers.CharField(source='alumni.user.username', read_only=True)
+    alumni = AlumniSerializer(read_only=True)
     comments = CommentSerializer(many=True, read_only=True) 
 
     class Meta:
         model = Post
-        fields = ['id', 'alumni_username', 'posted_date', 'description', 'image_link', 'video_link', 'likes', 'comments'] 
+        fields = ['id', 'alumni', 'posted_date', 'description', 'image_link', 'video_link', 'likes', 'comments'] 
         read_only_fields = ['posted_date', 'likes']
