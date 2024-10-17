@@ -12,6 +12,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 
+
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     authentication_classes = []
     permission_classes = []
