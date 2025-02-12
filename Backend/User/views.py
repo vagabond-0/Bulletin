@@ -11,7 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
-
+from django.db.models import Q
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
@@ -168,4 +168,26 @@ class PostListView(APIView):
     def get(self, request):
         posts = Post.objects.all().order_by('-posted_date')
         serializer = PostSerializer(posts, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+
+
+class UserSearchView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        search_query = request.GET.get('search', '').strip()
+        users = Alumni.objects.all()
+
+        if search_query:
+            users = users.filter(
+                Q(user__username__icontains=search_query) |
+                Q(user__first_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query) |
+                Q(email__icontains=search_query)
+            )
+
+        serializer = AlumniSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
