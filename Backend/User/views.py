@@ -13,6 +13,8 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.db.models import Q
 
+from django.contrib.auth.hashers import check_password
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     authentication_classes = []
@@ -27,29 +29,44 @@ class LoginView(APIView):
                 {'error': 'Please provide both email and password'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
         try:
             alumni = Alumni.objects.get(email=email)
-            user = authenticate(username=alumni.user.username, password=password)
+            print(f"Alumni found: {alumni.username}")
 
-            if user:
-                refresh = RefreshToken.for_user(user)
-                serializer = AlumniSerializer(alumni)
-                return Response({
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                    'user': serializer.data
-                })
-            else:
+            if password != alumni.password:
+                print(password)
+                print("password is ", alumni.password)
+                print("Password mismatch!")
                 return Response(
                     {'error': 'Invalid credentials'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
+
+            refresh = RefreshToken.for_user(alumni)
+            serializer = AlumniSerializer(alumni)
+
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': serializer.data
+            })
+
         except Alumni.DoesNotExist:
+            print("Alumni not found!")
             return Response(
                 {'error': 'Alumni not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-            
+
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}")  # Debugging line
+            return Response(
+                {'error': 'Something went wrong', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
             
 @method_decorator(csrf_exempt, name='dispatch')
 class PostListCreateView(generics.ListCreateAPIView):
@@ -60,7 +77,7 @@ class PostListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         try:
-            alumni = Alumni.objects.get(user=self.request.user)
+            alumni = Alumni.objects.get(email=self.request.user.email)
             serializer.save(alumni=alumni)
         except Alumni.DoesNotExist:
             raise ValidationError('User is not associated with an alumni profile')
@@ -84,7 +101,7 @@ class LikePostView(APIView):
     def post(self, request, pk):
         try:
             post = Post.objects.get(pk=pk)
-            alumni = Alumni.objects.get(user=request.user)
+            alumni = Alumni.objects.get(email=self.request.user.email)
 
             if alumni in post.likes.all():
                 post.likes.remove(alumni)
@@ -109,7 +126,7 @@ class LikeProfileView(APIView):
     def post(self, request, pk):
         try:
             target_alumni = Alumni.objects.get(pk=pk)
-            liker_alumni = Alumni.objects.get(user=request.user)
+            liker_alumni = Alumni.objects.get(email=self.request.user.email)
 
             if liker_alumni in target_alumni.likes.all():
                 target_alumni.likes.remove(liker_alumni)
@@ -137,7 +154,7 @@ class CommentCreateView(APIView):
         except Post.DoesNotExist:
             return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        alumni = Alumni.objects.get(user=request.user)
+        alumni = Alumni.objects.get(email=self.request.user.email)
         serializer = CommentSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -162,32 +179,26 @@ class CommentListView(APIView):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-class PostListView(APIView):
-    authentication_classes = [JWTAuthentication]
-
-    def get(self, request):
-        posts = Post.objects.all().order_by('-posted_date')
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    
-
-
-class UserSearchView(APIView):
+class PostListOrSearchView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         search_query = request.GET.get('search', '').strip()
-        users = Alumni.objects.all()
-
-        if search_query:
+        
+        if search_query: 
+            users = Alumni.objects.all()
+            
+           
             users = users.filter(
-                Q(user__username__icontains=search_query) |
-                Q(user__first_name__icontains=search_query) |
-                Q(user__last_name__icontains=search_query) |
+                Q(username__icontains=search_query) |
                 Q(email__icontains=search_query)
             )
 
-        serializer = AlumniSerializer(users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = AlumniSerializer(users, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        else:  
+            posts = Post.objects.all().order_by('-posted_date')
+            serializer = PostSerializer(posts, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)

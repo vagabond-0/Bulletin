@@ -105,7 +105,7 @@ DATABASES = {
 #     }
 # }
 
-DATABASES["default"] = dj_database_url.parse("postgresql://bulleting_user:9JhDQdUwt08l1BCn9FAzPzlnCenjiNZ1@dpg-cu4vdkjtq21c73dui3t0-a.oregon-postgres.render.com/bulleting")
+DATABASES["default"] = dj_database_url.parse("postgresql://bulletin_rhul_user:FHv5ZT1pXNYKuyRly1ieuUxdDmbS0bZh@dpg-cupda0lsvqrc73evvqeg-a.oregon-postgres.render.com/bulletin_rhul")
 
 
 # Password validation
