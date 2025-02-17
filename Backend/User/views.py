@@ -12,8 +12,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.db.models import Q
-
+from rest_framework.generics import RetrieveAPIView
 from django.contrib.auth.hashers import check_password
+from django.shortcuts import get_object_or_404
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
@@ -178,7 +179,7 @@ class CommentListView(APIView):
         serializer = CommentSerializer(comments, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
 class PostListOrSearchView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
@@ -186,15 +187,11 @@ class PostListOrSearchView(APIView):
     def get(self, request):
         search_query = request.GET.get('search', '').strip()
         
-        if search_query: 
-            users = Alumni.objects.all()
-            
-           
-            users = users.filter(
+        if search_query is not None and search_query != '':
+            users = Alumni.objects.filter(
                 Q(username__icontains=search_query) |
                 Q(email__icontains=search_query)
             )
-
             serializer = AlumniSerializer(users, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
@@ -202,3 +199,68 @@ class PostListOrSearchView(APIView):
             posts = Post.objects.all().order_by('-posted_date')
             serializer = PostSerializer(posts, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
+        
+class GetAlumniByUsernameView(RetrieveAPIView):
+    serializer_class = AlumniSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            username = request.query_params.get("username")
+            if not username:
+                return Response({"error": "Username parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            alumni = get_object_or_404(Alumni, username=username)
+            
+            # Serialize alumni details
+            alumni_serializer = self.get_serializer(alumni)
+            
+            # Get posts by this alumni
+            posts = Post.objects.filter(alumni=alumni).order_by('-posted_date')
+
+            enriched_posts = []
+            for post in posts:
+                # Get post comments
+                comments = Comment.objects.filter(post=post)
+                comment_list = [
+                    {
+                        "id": comment.id,
+                        "post": comment.post.id,
+                        "alumni": comment.alumni.id,
+                        "alumni_username": comment.alumni.username,
+                        "comment_text": comment.comment_text,
+                        "posted_date": comment.posted_date,
+                    }
+                    for comment in comments
+                ]
+
+                # Create post object with likes and comments
+                enriched_posts.append({
+                    "post": {
+                        "id": post.id,
+                        "alumni": {
+                            "id": alumni.id,
+                            "username": alumni.username,
+                            "email": alumni.email,
+                            "company": alumni.company,
+                            "designation": alumni.designation,
+                            "profile_picture_url": alumni.profile_picture_url
+                        },
+                        "posted_date": post.posted_date,
+                        "description": post.description,
+                        "image_link": post.image_link,
+                        "video_link": post.video_link,
+                        "likes": list(post.likes.values_list('id', flat=True)),  # List of user IDs who liked
+                        "comments": comment_list  # Ensure comments are only added once
+                    },
+                    "likes_count": post.likes.count(),
+                })
+
+            return Response({
+                "alumni": alumni_serializer.data,
+                "posts": enriched_posts
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            import logging
+            logging.error(f"Error in GetAlumniByUsernameView: {str(e)}")
+            return Response({"error": "An internal error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

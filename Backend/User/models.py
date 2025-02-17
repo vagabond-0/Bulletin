@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 class Alumni(models.Model):
-    username = models.CharField(max_length=255, default="default_username")
+    username = models.CharField(max_length=255,unique = True, default="default_username")
     password = models.CharField(max_length=255, blank = True)
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
