@@ -44,7 +44,6 @@ class LoginView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            # Create a token with alumni email included
             refresh = RefreshToken()
             refresh['alumni_email'] = alumni.email
             refresh['alumni_id'] = alumni.id
@@ -76,17 +75,15 @@ class AlumniJWTAuthentication(JWTAuthentication):
         Attempt to find and return a user using the given validated token.
         """
         try:
-            # Check if alumni credentials are in the token
+           
             if 'alumni_email' in validated_token and 'alumni_id' in validated_token:
-                # Create a temporary User object with alumni information
-                # Using a simple User object since it supports is_authenticated
+               
                 temp_user = User()
                 temp_user.email = validated_token['alumni_email']
                 temp_user.alumni_id = validated_token['alumni_id'] 
-                temp_user.is_active = True  # This makes is_authenticated return True
+                temp_user.is_active = True  
                 return temp_user
             
-            # Fall back to standard JWT authentication if no alumni info
             return super().get_user(validated_token)
             
         except Exception as e:
@@ -99,15 +96,13 @@ class PostListCreateView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [AlumniJWTAuthentication]  # Use your custom authentication
+    authentication_classes = [AlumniJWTAuthentication]  
 
     def perform_create(self, serializer):
         try:
-            # Get alumni email from the authenticated user
             alumni_email = self.request.user.email
             print(f"Looking for alumni with email: {alumni_email}")
             
-            # Find the alumni by their email
             alumni = Alumni.objects.get(email=alumni_email)
             serializer.save(alumni=alumni)
         except Alumni.DoesNotExist:
