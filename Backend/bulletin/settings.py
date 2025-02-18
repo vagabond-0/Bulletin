@@ -44,6 +44,17 @@ INSTALLED_APPS = [
     'corsheaders',
     'User'
 ]
+# Add this to settings.py
+AUTH_USER_MODEL = 'User.Alumni'  # app_name.model_name
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'User.authentication.AlumniJWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

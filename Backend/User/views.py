@@ -8,7 +8,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import Alumni, Post,Comment
 from .serializer import AlumniSerializer, PostSerializer,CommentSerializer
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.db.models import Q
@@ -17,6 +17,20 @@ from django.contrib.auth.models import AnonymousUser
 from rest_framework.generics import RetrieveAPIView
 from django.contrib.auth.hashers import check_password
 from django.shortcuts import get_object_or_404
+import traceback
+import logging
+from django.apps import apps
+from django.contrib.auth.hashers import check_password
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework import status, permissions, generics
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
+from .authentication import AlumniJWTAuthentication
+logger = logging.getLogger(__name__)
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
@@ -35,19 +49,20 @@ class LoginView(APIView):
 
         try:
             alumni = Alumni.objects.get(email=email)
-            print(f"Alumni found: {alumni.username}")
+            print(f"[DEBUG] Alumni found: {alumni.username}")
 
-            if password != alumni.password:
-                print("Password mismatch!")
+            if password != alumni.password:  
+                print("[ERROR] Password mismatch!")
                 return Response(
                     {'error': 'Invalid credentials'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            refresh = RefreshToken()
-            refresh['alumni_email'] = alumni.email
-            refresh['alumni_id'] = alumni.id
             
+            refresh = RefreshToken.for_user(alumni)
+            refresh['alumni_id'] = alumni.id
+            refresh['email'] = alumni.email
+
             serializer = AlumniSerializer(alumni)
 
             return Response({
@@ -57,82 +72,99 @@ class LoginView(APIView):
             })
 
         except Alumni.DoesNotExist:
-            print("Alumni not found!")
+            print("[ERROR] Alumni not found!")
             return Response(
                 {'error': 'Alumni not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
+            print(f"[ERROR] Unexpected error in LoginView: {str(e)}")
+            traceback.print_exc()
             return Response(
                 {'error': 'Something went wrong', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-class AlumniJWTAuthentication(JWTAuthentication):
-    def get_user(self, validated_token):
-        """
-        Attempt to find and return a user using the given validated token.
-        """
-        try:
-           
-            if 'alumni_email' in validated_token and 'alumni_id' in validated_token:
-               
-                temp_user = User()
-                temp_user.email = validated_token['alumni_email']
-                temp_user.alumni_id = validated_token['alumni_id'] 
-                temp_user.is_active = True  
-                return temp_user
-            
-            return super().get_user(validated_token)
-            
-        except Exception as e:
-            print(f"Error in custom authentication: {str(e)}")
-            return None
-
-
-@method_decorator(csrf_exempt, name='dispatch')
 class PostListCreateView(generics.ListCreateAPIView):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [AlumniJWTAuthentication]  
+        queryset = Post.objects.all()
+        serializer_class = PostSerializer
+        authentication_classes = [AlumniJWTAuthentication]
+        permission_classes = [permissions.IsAuthenticated]
+        
+        def create(self, request, *args, **kwargs):
+            try:
+                print("[DEBUG] Starting create method")
+                print(f"[DEBUG] Request user: {request.user}")
+                print(f"[DEBUG] Request data: {request.data}")
+                
+                serializer = self.get_serializer(data=request.data)
+                print("[DEBUG] Created serializer")
+                
+                # Check serializer validity and print any errors
+                if not serializer.is_valid():
+                    print(f"[ERROR] Serializer errors: {serializer.errors}")
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    
+                print(f"[DEBUG] Serializer is valid. Validated data: {serializer.validated_data}")
+                
+                # Save with explicit alumni assignment
+                try:
+                    post = serializer.save(alumni=request.user)
+                    print(f"[DEBUG] Post saved successfully: {post.id}")
+                    return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
+                except Exception as save_error:
+                    print(f"[ERROR] Error saving post: {str(save_error)}")
+                    import traceback
+                    traceback.print_exc()
+                    return Response(
+                        {'error': f'Error saving post: {str(save_error)}'}, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                    
+            except Exception as e:
+                print(f"[ERROR] Unexpected error in create: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return Response(
+                    {'error': f'Unexpected error: {str(e)}'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
 
-    def perform_create(self, serializer):
-        try:
-            alumni_email = self.request.user.email
-            print(f"Looking for alumni with email: {alumni_email}")
-            
-            alumni = Alumni.objects.get(email=alumni_email)
-            serializer.save(alumni=alumni)
-        except Alumni.DoesNotExist:
-            from rest_framework.exceptions import ValidationError
-            print(f"No alumni found with email: {getattr(self.request.user, 'email', 'NONE')}")
-            raise ValidationError('User is not associated with an alumni profile')
-        except Exception as e:
-            print(f"Error in perform_create: {str(e)}")
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError(f'Error creating post: {str(e)}')
-
+        def post(self, request, *args, **kwargs):
+            try:
+                print(f"[DEBUG] Incoming POST request data: {request.data}")
+                return super().post(request, *args, **kwargs)
+            except Exception as e:
+                print(f"[ERROR] Error in post method: {str(e)}")
+                traceback.print_exc()
+                raise
 @method_decorator(csrf_exempt, name='dispatch')
 class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]
 
     def get_queryset(self):
-        return Post.objects.filter(alumni__user=self.request.user)
+        print("[DEBUG] Starting get_queryset method")
+        print(f"[DEBUG] Request user: {self.request.user}")
+
+        if self.request.user.is_authenticated:
+            if isinstance(self.request.user, Alumni):
+                return Post.objects.filter(alumni=self.request.user)
+            else:
+                return Post.objects.none()
+        return Post.objects.none()
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LikePostView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]
 
     def post(self, request, pk):
         try:
             post = Post.objects.get(pk=pk)
-            alumni = Alumni.objects.get(email=self.request.user.email)
+            # Directly use request.user as Alumni
+            alumni = self.request.user
 
             if alumni in post.likes.all():
                 post.likes.remove(alumni)
@@ -147,17 +179,25 @@ class LikePostView(APIView):
                 {'error': 'Post not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        except Exception as e:
+            import logging
+            logging.error(f"Error in LikePostView: {str(e)}")
+            return Response(
+                {'error': 'An unexpected error occurred'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LikeProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]
 
     def post(self, request, pk):
         try:
             target_alumni = Alumni.objects.get(pk=pk)
-            liker_alumni = Alumni.objects.get(email=self.request.user.email)
+            # Directly use request.user as Alumni
+            liker_alumni = self.request.user
 
             if liker_alumni in target_alumni.likes.all():
                 target_alumni.likes.remove(liker_alumni)
@@ -172,64 +212,113 @@ class LikeProfileView(APIView):
                 {'error': 'Alumni not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        except Exception as e:
+            import logging
+            logging.error(f"Error in LikeProfileView: {str(e)}")
+            return Response(
+                {'error': 'An unexpected error occurred'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CommentCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]
 
     def post(self, request, post_id):
         try:
             post = Post.objects.get(pk=post_id)
+            # Directly use request.user as Alumni
+            alumni = self.request.user
+            
+            serializer = CommentSerializer(data=request.data)
+
+            if serializer.is_valid():
+                serializer.save(post=post, alumni=alumni)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Post.DoesNotExist:
             return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        alumni = Alumni.objects.get(email=self.request.user.email)
-        serializer = CommentSerializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save(post=post, alumni=alumni)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import logging
+            logging.error(f"Error in CommentCreateView: {str(e)}")
+            return Response({'error': 'An unexpected error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CommentListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]
 
     def get(self, request, post_id):
         try:
             post = Post.objects.get(pk=post_id)
+            comments = Comment.objects.filter(post=post)
+            serializer = CommentSerializer(comments, many=True)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Post.DoesNotExist:
             return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        comments = Comment.objects.filter(post=post)
-        serializer = CommentSerializer(comments, many=True)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            import logging
+            logging.error(f"Error in CommentListView: {str(e)}")
+            return Response({'error': 'An unexpected error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PostListOrSearchView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
-
+    
     def get(self, request):
-        search_query = request.GET.get('search', '').strip()
-        
-        if search_query is not None and search_query != '':
-            users = Alumni.objects.filter(
-                Q(username__icontains=search_query) |
-                Q(email__icontains=search_query)
+        try:
+            search_query = request.GET.get('search', '').strip()
+            logger.info(f"Search query received: {search_query}")
+
+            if search_query:
+                try:
+                    users = Alumni.objects.filter(
+                        Q(username__icontains=search_query) |
+                        Q(email__icontains=search_query)
+                    )
+                    logger.info(f"Found {users.count()} users matching query")
+                    
+                    serializer = AlumniSerializer(users, many=True)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                
+                except Exception as e:
+                    logger.error(f"Error during user search: {str(e)}", exc_info=True)
+                    return Response(
+                        {"error": "Error occurred while searching users"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            try:
+                posts = Post.objects.all().order_by('-posted_date')
+                logger.info(f"Fetched {posts.count()} posts")
+                
+                serializer = PostSerializer(posts, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                logger.error(f"Error fetching posts: {str(e)}", exc_info=True)
+                return Response(
+                    {"error": "Error occurred while fetching posts"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except ValidationError as e:
+            logger.error(f"Validation error: {str(e)}")
+            return Response(
+                {"error": "Invalid parameters provided"},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            serializer = AlumniSerializer(users, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        else:  
-            posts = Post.objects.all().order_by('-posted_date')
-            serializer = PostSerializer(posts, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in PostListOrSearchView: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class GetAlumniByUsernameView(RetrieveAPIView):
     serializer_class = AlumniSerializer
 
