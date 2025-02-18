@@ -12,6 +12,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.db.models import Q
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.contrib.auth.models import AnonymousUser
 from rest_framework.generics import RetrieveAPIView
 from django.contrib.auth.hashers import check_password
 from django.shortcuts import get_object_or_404
@@ -36,15 +38,17 @@ class LoginView(APIView):
             print(f"Alumni found: {alumni.username}")
 
             if password != alumni.password:
-                print(password)
-                print("password is ", alumni.password)
                 print("Password mismatch!")
                 return Response(
                     {'error': 'Invalid credentials'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            refresh = RefreshToken.for_user(alumni)
+            # Create a token with alumni email included
+            refresh = RefreshToken()
+            refresh['alumni_email'] = alumni.email
+            refresh['alumni_id'] = alumni.id
+            
             serializer = AlumniSerializer(alumni)
 
             return Response({
@@ -59,29 +63,61 @@ class LoginView(APIView):
                 {'error': 'Alumni not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")  # Debugging line
+            print(f"Unexpected error: {str(e)}")
             return Response(
                 {'error': 'Something went wrong', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
+class AlumniJWTAuthentication(JWTAuthentication):
+    def get_user(self, validated_token):
+        """
+        Attempt to find and return a user using the given validated token.
+        """
+        try:
+            # Check if alumni credentials are in the token
+            if 'alumni_email' in validated_token and 'alumni_id' in validated_token:
+                # Create a temporary User object with alumni information
+                # Using a simple User object since it supports is_authenticated
+                temp_user = User()
+                temp_user.email = validated_token['alumni_email']
+                temp_user.alumni_id = validated_token['alumni_id'] 
+                temp_user.is_active = True  # This makes is_authenticated return True
+                return temp_user
             
+            # Fall back to standard JWT authentication if no alumni info
+            return super().get_user(validated_token)
+            
+        except Exception as e:
+            print(f"Error in custom authentication: {str(e)}")
+            return None
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class PostListCreateView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [AlumniJWTAuthentication]  # Use your custom authentication
 
     def perform_create(self, serializer):
         try:
-            alumni = Alumni.objects.get(email=self.request.user.email)
+            # Get alumni email from the authenticated user
+            alumni_email = self.request.user.email
+            print(f"Looking for alumni with email: {alumni_email}")
+            
+            # Find the alumni by their email
+            alumni = Alumni.objects.get(email=alumni_email)
             serializer.save(alumni=alumni)
         except Alumni.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            print(f"No alumni found with email: {getattr(self.request.user, 'email', 'NONE')}")
             raise ValidationError('User is not associated with an alumni profile')
+        except Exception as e:
+            print(f"Error in perform_create: {str(e)}")
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(f'Error creating post: {str(e)}')
 
 @method_decorator(csrf_exempt, name='dispatch')
 class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -92,7 +128,6 @@ class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Post.objects.filter(alumni__user=self.request.user)
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LikePostView(APIView):
