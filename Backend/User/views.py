@@ -29,6 +29,9 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from .authentication import AlumniJWTAuthentication
+from django.core.mail import send_mail
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,16 +102,21 @@ class PostListCreateView(generics.ListCreateAPIView):
                 serializer = self.get_serializer(data=request.data)
                 print("[DEBUG] Created serializer")
                 
-                # Check serializer validity and print any errors
                 if not serializer.is_valid():
                     print(f"[ERROR] Serializer errors: {serializer.errors}")
                     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                     
                 print(f"[DEBUG] Serializer is valid. Validated data: {serializer.validated_data}")
                 
-                # Save with explicit alumni assignment
+       
                 try:
                     post = serializer.save(alumni=request.user)
+                    alumni_emails = [alumini.email for alumini in Alumni.objects.all()]
+                    Subject="New Post Posted"
+                    message = f"A new post has been created by {request.user}."
+                    email_from = settings.DEFAULT_FROM_EMAIL
+                    send_mail(Subject, message, email_from, alumni_emails)
+                    print("[DEBUG] Email sent to all alumni.")
                     print(f"[DEBUG] Post saved successfully: {post.id}")
                     return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
                 except Exception as save_error:
@@ -137,6 +145,8 @@ class PostListCreateView(generics.ListCreateAPIView):
                 print(f"[ERROR] Error in post method: {str(e)}")
                 traceback.print_exc()
                 raise
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
@@ -163,7 +173,7 @@ class LikePostView(APIView):
     def post(self, request, pk):
         try:
             post = Post.objects.get(pk=pk)
-            # Directly use request.user as Alumni
+           
             alumni = self.request.user
 
             if alumni in post.likes.all():
@@ -276,7 +286,8 @@ class PostListOrSearchView(APIView):
                 try:
                     users = Alumni.objects.filter(
                         Q(username__icontains=search_query) |
-                        Q(email__icontains=search_query)
+                        Q(email__icontains=search_query) |
+                        Q(company=search_query)
                     )
                     logger.info(f"Found {users.count()} users matching query")
                     
@@ -330,15 +341,15 @@ class GetAlumniByUsernameView(RetrieveAPIView):
             
             alumni = get_object_or_404(Alumni, username=username)
             
-            # Serialize alumni details
+        
             alumni_serializer = self.get_serializer(alumni)
             
-            # Get posts by this alumni
+           
             posts = Post.objects.filter(alumni=alumni).order_by('-posted_date')
 
             enriched_posts = []
             for post in posts:
-                # Get post comments
+            
                 comments = Comment.objects.filter(post=post)
                 comment_list = [
                     {
@@ -368,8 +379,8 @@ class GetAlumniByUsernameView(RetrieveAPIView):
                         "description": post.description,
                         "image_link": post.image_link,
                         "video_link": post.video_link,
-                        "likes": list(post.likes.values_list('id', flat=True)),  # List of user IDs who liked
-                        "comments": comment_list  # Ensure comments are only added once
+                        "likes": list(post.likes.values_list('id', flat=True)), 
+                        "comments": comment_list  
                     },
                     "likes_count": post.likes.count(),
                 })

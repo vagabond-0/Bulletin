@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/home/amalendum/current project/Bulletin/Backend/myenv/bin/python" "$0" "$@"
-' '''
+#!/home/amalendu/project/Bulletin/Backend/myenv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
