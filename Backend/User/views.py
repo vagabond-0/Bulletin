@@ -342,8 +342,8 @@ class GetAlumniByUsernameView(RetrieveAPIView):
             posts = Post.objects.filter(alumni=alumni).order_by('-posted_date')
 
             enriched_posts = []
+           
             for post in posts:
-            
                 comments = Comment.objects.filter(post=post)
                 comment_list = [
                     {
@@ -356,7 +356,7 @@ class GetAlumniByUsernameView(RetrieveAPIView):
                     }
                     for comment in comments
                 ]
-
+                
                 # Create post object with likes and comments
                 enriched_posts.append({
                     "post": {
@@ -374,9 +374,10 @@ class GetAlumniByUsernameView(RetrieveAPIView):
                         "image_link": post.image_link,
                         "video_link": post.video_link,
                         "likes": list(post.likes.values_list('id', flat=True)), 
+                        "likes_count": len(list(post.likes.values_list('id', flat=True))),
                         "comments": comment_list  
                     },
-                    "likes_count": post.likes.count(),
+                    
                 })
 
             return Response({

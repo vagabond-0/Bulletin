@@ -18,8 +18,8 @@ class CommentSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     alumni = AlumniSerializer(read_only=True)
     comments = CommentSerializer(many=True, read_only=True) 
-
+    likes_count = serializers.IntegerField(source='likes.count', read_only=True) 
     class Meta:
         model = Post
-        fields = ['id', 'alumni', 'posted_date', 'description', 'image_link', 'video_link', 'likes', 'comments'] 
+        fields = ['id', 'alumni', 'posted_date', 'description', 'image_link', 'video_link', 'likes','likes_count', 'comments'] 
         read_only_fields = ['posted_date', 'likes']
