@@ -205,31 +205,26 @@ class LikeProfileView(APIView):
 
     def post(self, request, pk):
         try:
-            target_alumni = Alumni.objects.get(pk=pk)
-            # Directly use request.user as Alumni
-            liker_alumni = self.request.user
+            target_post = Post.objects.get(pk=pk)
+            liker_alumni = self.request.user  
 
-            if liker_alumni in target_alumni.likes.all():
-                target_alumni.likes.remove(liker_alumni)
+            if liker_alumni in target_post.likes.all():
+                target_post.likes.remove(liker_alumni)
                 action = 'unliked'
             else:
-                target_alumni.likes.add(liker_alumni)
+                target_post.likes.add(liker_alumni)
                 action = 'liked'
 
-            return Response({'status': f'Profile {action}', 'likes_count': target_alumni.likes.count()}, status=status.HTTP_200_OK)
-        except Alumni.DoesNotExist:
             return Response(
-                {'error': 'Alumni not found'},
-                status=status.HTTP_404_NOT_FOUND
+                {'status': f'Post {action}', 'likes_count': target_post.likes.count()},
+                status=status.HTTP_200_OK
             )
+        except Post.DoesNotExist:
+            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             import logging
-            logging.error(f"Error in LikeProfileView: {str(e)}")
-            return Response(
-                {'error': 'An unexpected error occurred'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
+            logging.error(f"Error in LikePostView: {str(e)}")
+            return Response({'error': 'An unexpected error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CommentCreateView(APIView):
