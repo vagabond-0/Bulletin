@@ -281,7 +281,7 @@ class PostListOrSearchView(APIView):
                 try:
                     users = Alumni.objects.filter(
                         Q(username__icontains=search_query) |
-                        Q(company=search_query)
+                        Q(company__icontains=search_query) 
                     )
                     logger.info(f"Found {users.count()} users matching query")
                     
