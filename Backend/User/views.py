@@ -345,17 +345,18 @@ class GetAlumniByUsernameView(RetrieveAPIView):
            
             for post in posts:
                 comments = Comment.objects.filter(post=post)
-                comment_list = [
-                    {
-                        "id": comment.id,
-                        "post": comment.post.id,
-                        "alumni": comment.alumni.id,
-                        "alumni_username": comment.alumni.username,
-                        "comment_text": comment.comment_text,
-                        "posted_date": comment.posted_date,
-                    }
-                    for comment in comments
-                ]
+                comment_serializer = CommentSerializer(comments, many=True)
+                # comment_list = [
+                #     {
+                #         "id": comment.id,
+                #         "post": comment.post.id,
+                #         "alumni": comment.alumni,
+                #         "alumni_username": comment.alumni.username,
+                #         "comment_text": comment.comment_text,
+                #         "posted_date": comment.posted_date,
+                #     }
+                #     for comment in comments
+                # ]
                 
                 # Create post object with likes and comments
                 enriched_posts.append({
@@ -375,7 +376,7 @@ class GetAlumniByUsernameView(RetrieveAPIView):
                         "video_link": post.video_link,
                         "likes": list(post.likes.values_list('id', flat=True)), 
                         "likes_count": len(list(post.likes.values_list('id', flat=True))),
-                        "comments": comment_list  
+                        "comments":  comment_serializer.data
                     },
                     
                 })
