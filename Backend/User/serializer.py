@@ -8,12 +8,12 @@ class AlumniSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     alumni_username = serializers.CharField(source='alumni.username', read_only=True)
+    alumni = AlumniSerializer(read_only=True)
 
     class Meta:
         model = Comment
         fields = ('id', 'post', 'alumni', 'alumni_username', 'comment_text', 'posted_date')
         read_only_fields = ('post', 'alumni', 'posted_date')
-
 
 class PostSerializer(serializers.ModelSerializer):
     alumni = AlumniSerializer(read_only=True)
