@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-@@n&m5lh3bz#8y7&v=z3!6g&w_ug=92c$d^#d^*=2_k+ne2-se'
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
@@ -116,7 +116,7 @@ DATABASES = {
 #     }
 # }
 
-DATABASES["default"] = dj_database_url.parse("postgresql://bulletin_rhul_user:FHv5ZT1pXNYKuyRly1ieuUxdDmbS0bZh@dpg-cupda0lsvqrc73evvqeg-a.oregon-postgres.render.com/bulletin_rhul")
+DATABASES["default"] = dj_database_url.parse("postgresql://bulletindatabase_user:ix8zBPpHScuSCtIetArGa5TmEtmHQAqW@dpg-cv7a3vtumphs738fp220-a.oregon-postgres.render.com/bulletindatabase")
 
 
 # Password validation

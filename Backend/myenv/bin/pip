@@ -1,4 +1,4 @@
-#!/home/amalendu/project/Bulletin/Backend/myenv/bin/python
+#!/home/amalendu/project/Bulletin/Backend/myenv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys
